@@ -1,6 +1,6 @@
 # ==========================================
 # ★ APIキーをご自身のものに書き換えてください
-GROQ_API_KEY = "gsk_ここにあなたの実際のキーを貼り付け"
+GROQ_API_KEY = "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"
 # ==========================================
 
 import streamlit as st
