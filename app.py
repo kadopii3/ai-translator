@@ -1,6 +1,6 @@
 # ==========================================
 # ★ ここにご自身のGroq APIキーを貼り付けます
-GROQ_API_KEY = "gsk_ここにあなたの実際のAPIキーを貼り付けてください"
+GROQ_API_KEY = "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"
 # ==========================================
 
 import streamlit as st
