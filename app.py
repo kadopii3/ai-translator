@@ -7,14 +7,15 @@ import streamlit as st
 from groq import Groq
 import os
 import tempfile
+import wave
+import math
 
 # ページの基本設定
 st.set_page_config(page_title="AI文字起こし＆要約ツール", layout="wide")
 
-# カスタムCSSでデザインを大幅にカスタマイズ
+# カスタムCSS（前回のUIデザインをそのまま維持）
 st.markdown("""
     <style>
-    /* 1. タイトルの大きさ（前回のまま大きく） */
     .main-title {
         color: #0083B8;
         text-align: center;
@@ -30,63 +31,47 @@ st.markdown("""
         margin-top: 0px;
         margin-bottom: 20px;
     }
-
-    /* 2. 録音マイク（st.audio_input）を「丸い緑ボタン」にするCSS（サイズ調整版） */
-    
     #root .stAudioInput {
         width: auto;
-        max-width: 200px; /* 全体の幅を少し狭く */
-        margin: 0 auto;   /* 中央寄せ */
+        max-width: 200px; 
+        margin: 0 auto;   
         border: none;
         background: transparent;
     }
-
-    /* 録音ボタン自体（緑色のまま、大きさを半分に：直径75px） */
     #root .stAudioInput button {
-        width: 75px !important;   /* ★大きさを前回の半分に */
-        height: 75px !important;  /* ★大きさを前回の半分に */
-        border-radius: 50% !important; /* 完全に丸く */
-        background-color: #28a745 !important; /* ★最初のバージョンのような緑色 */
+        width: 75px !important;   
+        height: 75px !important;  
+        border-radius: 50% !important; 
+        background-color: #28a745 !important; 
         color: white !important;
-        border: 4px solid #fff !important;   /* 白い枠線を少し細く */
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important; /* 影を少し控えめに */
+        border: 4px solid #fff !important;   
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important; 
         transition: all 0.3s ease;
         margin: 0 auto !important;
         display: block !important;
-        padding: 0 !important; /* パディングをリセット */
+        padding: 0 !important; 
     }
-
-    /* ホバー時（マウスを乗せた時）の動き */
     #root .stAudioInput button:hover {
-        background-color: #218838 !important; /* 少し濃い緑に */
-        transform: scale(1.05); /* 少し大きく */
+        background-color: #218838 !important; 
+        transform: scale(1.05); 
     }
-
-    /* マイクアイコンの大きさと位置調整（ボタンに合わせて縮小） */
     #root .stAudioInput svg {
-        width: 30px !important;  /* ★アイコンも小さく */
-        height: 30px !important; /* ★アイコンも小さく */
+        width: 30px !important;  
+        height: 30px !important; 
         transform: translate(0px, 0px) !important;
     }
-
-    /* 「ここをタップ」等のテキストを消す（アイコンだけにする） */
     #root .stAudioInput div[div="caption"] {
         display: none !important;
     }
-    
-    /* 録音中の時の赤い波紋アニメーション */
     #root .stAudioInput[data-testid="stAudioInputRecording"] button {
-        background-color: #dc3545 !important; /* 録音中は赤に */
+        background-color: #dc3545 !important; 
         animation: pulse 1.5s infinite;
     }
-    
     @keyframes pulse {
         0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
         70% { box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); }
         100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
     }
-
-    /* 結果表示エリアの装飾 */
     .result-box {
         background-color: #f8f9fa;
         border-radius: 10px;
@@ -97,38 +82,78 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# タイトル表示
+# 音声ファイルを細かく分割する関数（25MB制限突破用）
+def split_audio(file_path, chunk_length_sec=60):
+    chunks = []
+    try:
+        with wave.open(file_path, 'rb') as wav:
+            n_frames = wav.getnframes()
+            frame_rate = wav.getframerate()
+            frames_per_chunk = int(chunk_length_sec * frame_rate)
+            n_chunks = math.ceil(n_frames / frames_per_chunk)
+
+            for i in range(n_chunks):
+                chunk_path = f"{file_path}_chunk{i}.wav"
+                with wave.open(chunk_path, 'wb') as chunk_wav:
+                    chunk_wav.setparams(wav.getparams())
+                    wav.setpos(i * frames_per_chunk)
+                    chunk_data = wav.readframes(frames_per_chunk)
+                    chunk_wav.writeframes(chunk_data)
+                chunks.append(chunk_path)
+    except Exception as e:
+        st.error(f"音声の分割中にエラーが発生しました: {e}")
+    return chunks
+
+# UI部分
 st.markdown('<p class="main-title">🎙️ AI文字起こし＆翻訳・要約ツール</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">マイクを押して話し、終わったらもう一度押してください。</p>', unsafe_allow_html=True)
 
-# 言語選択
 col1, col2, col3 = st.columns([1, 1.5, 1])
 with col2:
     input_lang = st.radio("🗣️ 言語を選択", ["自動検出", "日本語", "英語"], horizontal=True)
 
-st.write("") # スペース空け
+st.write("")
 
-# 🎤 ちょうどいい大きさの丸い緑色マイクボタン
+# マイク入力
 audio_value = st.audio_input("マイク")
 
-# 処理部分
 if audio_value:
     client = Groq(api_key=GROQ_API_KEY)
+    
+    # 1. 録音データを一時保存
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         temp_audio.write(audio_value.getvalue())
         temp_audio_path = temp_audio.name
 
-    with st.spinner("⚡ AIが解析中..."):
+    with st.spinner("⚡ 音声を分析・処理中...（長時間の録音は少し時間がかかります）"):
+        chunk_paths = []
         try:
-            with open(temp_audio_path, "rb") as f:
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-large-v3", file=f, response_format="json"
-                )
+            # 2. 音声を60秒ごとに自動分割
+            chunk_paths = split_audio(temp_audio_path, chunk_length_sec=60)
             
-            # AIによる整形
+            full_transcript = ""
+            
+            # 3. 分割したファイルを順番にAIに投げて合体させる
+            progress_bar = st.progress(0)
+            st.info(f"音声を {len(chunk_paths)} 個のブロックに分けて処理しています...")
+            
+            for i, chunk_path in enumerate(chunk_paths):
+                with open(chunk_path, "rb") as f:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-large-v3", 
+                        file=f, 
+                        response_format="json"
+                    )
+                    full_transcript += transcript.text + "\n"
+                
+                # 進捗バーを更新
+                progress = int(((i + 1) / len(chunk_paths)) * 100)
+                progress_bar.progress(progress)
+
+            # 4. 全てのテキストが揃ったら、Llamaで要約・整形
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": f"以下の内容を読みやすく整形（必要ならA: B:と話者分離）し、最後に箇条書きで要約してください:\n\n{transcript.text}"}]
+                messages=[{"role": "user", "content": f"以下の内容を読みやすく整形（必要ならA: B:と話者分離）し、最後に箇条書きで要約してください:\n\n{full_transcript}"}]
             )
             
             result_text = response.choices[0].message.content
@@ -149,7 +174,11 @@ if audio_value:
             )
                 
         except Exception as e:
-            st.error(f"エラー: {e}")
+            st.error(f"処理エラー: {e}")
         finally:
+            # 使い終わった一時ファイルを全て綺麗に削除（お掃除）
             if os.path.exists(temp_audio_path):
                 os.remove(temp_audio_path)
+            for chunk_path in chunk_paths:
+                if os.path.exists(chunk_path):
+                    os.remove(chunk_path)
