@@ -1,14 +1,14 @@
-# ==========================================
-# ★ APIキーをご自身のものに書き換えてください
-GROQ_API_KEY = "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"
-# ==========================================
-
 import streamlit as st
 from groq import Groq
 import os
 import tempfile
 import subprocess
 import glob
+
+# ==========================================
+# ★ 金庫（Streamlit Secrets）からAPIキーを安全に呼び出す
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+# ==========================================
 
 st.set_page_config(page_title="AI文字起こし＆要約ツール", layout="wide")
 
@@ -29,12 +29,10 @@ st.markdown('''
     </style>
 ''', unsafe_allow_html=True)
 
-# 🌟 エラーが起きない新しい音声分割関数（システム機能を直接使う）
 def process_audio(file_path):
     temp_dir = tempfile.mkdtemp()
     output_pattern = os.path.join(temp_dir, "chunk_%03d.mp3")
     
-    # 10分(600秒)ごとに分割し、Whisperに最適な軽量データに変換
     command = [
         "ffmpeg", "-y", "-i", file_path, 
         "-f", "segment", "-segment_time", "600", 
