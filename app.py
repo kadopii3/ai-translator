@@ -1,3 +1,4 @@
+
 # ==========================================
 # ★ APIキーをご自身のものに書き換えてください
 GROQ_API_KEY = "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"
