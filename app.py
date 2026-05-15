@@ -78,11 +78,11 @@ if audio_source:
         temp_audio.write(audio_source.getvalue())
         temp_audio_path = temp_audio.name
 
-    with st.spinner("⚡ 大容量ファイルを最適化して解析中..."):
+    with st.spinner("⚡ 大容量ファイルを最適化して文字起こし中..."):
         chunk_paths = []
         try:
             chunk_paths = process_audio(temp_audio_path)
-            full_transcript = ""
+            raw_transcript = ""
             progress_bar = st.progress(0)
             
             if not chunk_paths:
@@ -93,18 +93,40 @@ if audio_source:
                         transcript = client.audio.transcriptions.create(
                             model="whisper-large-v3", file=f, response_format="json"
                         )
-                        full_transcript += transcript.text + " "
+                        raw_transcript += transcript.text + "\n"
                     progress_bar.progress(int(((i + 1) / len(chunk_paths)) * 100))
+
+                st.info("📝 文字起こしが完了しました。続いて要約を作成しています...")
+
+                # ★AIの「息切れ」を防ぐため、全文の書き直しをやめ、「要約の作成」に特化させます
+                prompt = f"""
+                以下の会議の文字起こし全文を読んで、主要な議題、重要な発言、決定事項などを分かりやすく箇条書きで要約してください。
+                ※注意：文字起こしの全文を書き直す必要はありません。要約のみを出力してください。
+                
+                【文字起こし全文】
+                {raw_transcript}
+                """
 
                 response = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
-                    messages=[{"role": "user", "content": f"以下の内容を読みやすく整形し（必要ならA: B:と話者分離）、最後に箇条書きで要約してください:\n\n{full_transcript}"}]
+                    messages=[{"role": "user", "content": prompt}]
                 )
                 
-                result_text = response.choices[0].message.content
+                summary_text = response.choices[0].message.content
                 st.success("全ての処理が完了しました！")
-                st.markdown(f'<div class="result-box"><h3>🗣️ 解析結果</h3>{result_text}</div>', unsafe_allow_html=True)
-                st.download_button("📥 この結果を保存", result_text, "ai_result.txt", use_container_width=True)
+                
+                # 結果を分けて表示（要約はボックス内、全文は折りたたみ）
+                st.markdown("### 📝 AI要約")
+                st.markdown(f'<div class="result-box">{summary_text}</div>', unsafe_allow_html=True)
+                
+                st.markdown("### 🗣️ 文字起こし全文")
+                with st.expander("クリックして全文を開く"):
+                    st.write(raw_transcript)
+
+                # ダウンロード内容も「要約＋全文」のセットにする
+                export_data = f"【AI要約】\n{summary_text}\n\n================================\n\n【文字起こし全文】\n{raw_transcript}"
+                
+                st.download_button("📥 要約と全文を保存", export_data, "ai_result.txt", use_container_width=True)
                 
         except Exception as e:
             st.error(f"エラーが発生しました: {e}")
