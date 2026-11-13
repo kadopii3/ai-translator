@@ -105,11 +105,10 @@ if audio_source:
                 
                 【文字起こし全文】
                 """
-
                 # 最新版から順番に試し、エラーが出たら次の安定版を自動で使う仕組み
                 fallback_models = [
-                    "llama-3.3-70b-versatile", # 最新の高精度モデル
-                    "llama-3.1-8b-instant"     # 最新の高速・軽量モデル
+                    "openai/gpt-oss-120b", # 現在のメイン高精度モデル
+                    "openai/gpt-oss-20b"   # 予備の高速モデル
                 ]
                 summary_text = ""
                 error_details = [] # エラーの本当の原因を記録するリスト
