@@ -108,12 +108,10 @@ if audio_source:
 
                 # 最新版から順番に試し、エラーが出たら次の安定版を自動で使う仕組み
                 fallback_models = [
-                    "llama-3.3-70b-versatile", 
-                    "llama-3.1-8b-instant",    # ★追加: 制限が非常に緩く、高速で安定している軽量モデル
-                    "llama3-70b-8192",         
-                    "mixtral-8x7b-32768"       
+                    "llama3-8b-8192",    # Llama3の基本・安定版
+                    "gemma2-9b-it",      # Googleが開発した安定モデル
+                    "gemma-7b-it"        # 予備の予備
                 ]
-                
                 summary_text = ""
                 error_details = [] # エラーの本当の原因を記録するリスト
                 
