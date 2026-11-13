@@ -104,15 +104,30 @@ if audio_source:
                 ※注意：文字起こしの全文を書き直す必要はありません。要約のみを出力してください。
                 
                 【文字起こし全文】
-                {raw_transcript}
                 """
 
-                response = client.chat.completions.create(
-                    model="llama-3.1-70b-versatile",
-                    messages=[{"role": "user", "content": prompt}]
-                )
+                # 最新版から順番に試し、エラーが出たら次の安定版を自動で使う仕組み
+                fallback_models = [
+                    "llama-3.3-70b-versatile", # 1. 最新モデルをまず試す
+                    "llama3-70b-8192",         # 2. ダメなら長期サポート安定版を使う
+                    "mixtral-8x7b-32768"       # 3. 念のための予備モデル
+                ]
                 
-                summary_text = response.choices[0].message.content
+                summary_text = ""
+                for m_name in fallback_models:
+                    try:
+                        response = client.chat.completions.create(
+                            model=m_name,
+                            messages=[{"role": "user", "content": prompt}]
+                        )
+                        summary_text = response.choices[0].message.content
+                        break # 成功したらここで処理を完了する
+                    except Exception:
+                        continue # エラーになった場合は次のモデルを試す
+                
+                if not summary_text:
+                    raise Exception("現在利用できる要約AIモデルがありません。")
+
                 st.success("全ての処理が完了しました！")
                 
                 # 結果を分けて表示（要約はボックス内、全文は折りたたみ）
