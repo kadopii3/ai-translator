@@ -108,12 +108,15 @@ if audio_source:
 
                 # 最新版から順番に試し、エラーが出たら次の安定版を自動で使う仕組み
                 fallback_models = [
-                    "llama-3.3-70b-versatile", # 1. 最新モデルをまず試す
-                    "llama3-70b-8192",         # 2. ダメなら長期サポート安定版を使う
-                    "mixtral-8x7b-32768"       # 3. 念のための予備モデル
+                    "llama-3.3-70b-versatile", 
+                    "llama-3.1-8b-instant",    # ★追加: 制限が非常に緩く、高速で安定している軽量モデル
+                    "llama3-70b-8192",         
+                    "mixtral-8x7b-32768"       
                 ]
                 
                 summary_text = ""
+                error_details = [] # エラーの本当の原因を記録するリスト
+                
                 for m_name in fallback_models:
                     try:
                         response = client.chat.completions.create(
@@ -122,11 +125,13 @@ if audio_source:
                         )
                         summary_text = response.choices[0].message.content
                         break # 成功したらここで処理を完了する
-                    except Exception:
-                        continue # エラーになった場合は次のモデルを試す
+                    except Exception as e:
+                        error_details.append(f"【{m_name}】: {str(e)}")
+                        continue # エラーになった場合は記録して次のモデルを試す
                 
                 if not summary_text:
-                    raise Exception("現在利用できる要約AIモデルがありません。")
+                    error_msg = "\n".join(error_details)
+                    raise Exception(f"全てのAIモデルが利用できませんでした。詳細な原因:\n{error_msg}")
 
                 st.success("全ての処理が完了しました！")
                 
